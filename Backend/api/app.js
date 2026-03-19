@@ -73,29 +73,50 @@ app.get("/api/health", (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error("Error:", err);
+  console.error("Request path:", req.path);
+  console.error("Request method:", req.method);
   
   // Don't expose internal error messages (like JSON.parse errors) in production
-  let message = "Internal Server Error"
+  let message = "An error occurred. Please try again."
+  
+  // Check request path to provide context-specific messages
+  const isInterviewRoute = req.path && (
+    req.path.includes("/interview") || 
+    req.path.includes("/resume") || 
+    req.path.includes("/pdf")
+  )
+  
+  const isAuthRoute = req.path && req.path.includes("/auth")
   
   if (err.message) {
     // Filter out technical error messages and provide user-friendly alternatives
-    if (err.message.includes("JSON") || err.message.includes("Unexpected token") || err.message.includes("parse")) {
-      // Check if this is from a specific route to provide better context
-      if (err.message.includes("AI service") || err.message.includes("resume") || err.message.includes("interview")) {
+    if (err.message.includes("JSON") || err.message.includes("Unexpected token") || err.message.includes("parse") || err.message.includes("invalid response format")) {
+      if (isInterviewRoute) {
         message = "Unable to process the request. Please try regenerating your interview report."
+      } else if (isAuthRoute) {
+        message = "Authentication error. Please try logging in again."
       } else {
         message = "Invalid data format. Please try again."
       }
     } else if (err.message.includes("timeout")) {
-      message = "Request timed out. Please try again."
+      if (isInterviewRoute) {
+        message = "Request timed out. This may take longer than expected. Please try again."
+      } else {
+        message = "Request timed out. Please try again."
+      }
     } else if (err.message.includes("AI service") || err.message.includes("generateContent")) {
-      message = "AI service is temporarily unavailable. Please try again in a few moments."
+      if (isInterviewRoute) {
+        message = "AI service is temporarily unavailable. Please try regenerating your interview report in a few moments."
+      } else {
+        message = "AI service is temporarily unavailable. Please try again in a few moments."
+      }
+    } else if (err.message.includes("Puppeteer") || err.message.includes("browser")) {
+      message = "PDF generation service is temporarily unavailable. Please try again in a few moments."
     } else if (process.env.NODE_ENV === "development") {
       // In development, show the actual error
       message = err.message
-    } else {
-      // For other errors, use a generic message
-      message = "An error occurred. Please try again."
+    } else if (err.message.includes("resume") || err.message.includes("HTML content")) {
+      message = "Resume content could not be generated. Please try regenerating your interview report."
     }
   }
   
