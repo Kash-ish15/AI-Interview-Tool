@@ -78,6 +78,12 @@ const interviewReportSchema = new mongoose.Schema({
     resumeFilePublicId: {
         type: String, // Cloudinary public ID for file deletion
     },
+    generatedResumePdfUrl: {
+        type: String, // Cloudinary URL for the AI-generated resume PDF
+    },
+    generatedResumePdfPublicId: {
+        type: String, // Cloudinary public ID for generated PDF deletion
+    },
     selfDescription: {
         type: String,
     },

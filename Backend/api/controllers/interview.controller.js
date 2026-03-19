@@ -217,6 +217,13 @@ async function generateResumePdfController(req, res) {
             })
         }
 
+        // Check if PDF already exists in Cloudinary
+        if (interviewReport.generatedResumePdfUrl) {
+            console.log("Resume PDF already exists, redirecting to Cloudinary URL")
+            // Redirect to Cloudinary URL for direct download
+            return res.redirect(interviewReport.generatedResumePdfUrl)
+        }
+
         // Generate PDF with timeout handling
         console.log("Starting PDF generation for interview report:", interviewReportId)
 
@@ -239,6 +246,30 @@ async function generateResumePdfController(req, res) {
         }
 
         console.log("PDF generated successfully, size:", pdfBuffer.length)
+
+        // Upload generated PDF to Cloudinary for future use
+        let pdfUrl = null
+        let pdfPublicId = null
+        try {
+            const cloudinaryResult = await uploadToCloudinary(
+                pdfBuffer,
+                'generated-resumes',
+                'raw' // PDF as raw type
+            )
+            pdfUrl = cloudinaryResult.secure_url
+            pdfPublicId = cloudinaryResult.public_id
+            
+            // Update interview report with PDF URL
+            await interviewReportModel.findByIdAndUpdate(interviewReportId, {
+                generatedResumePdfUrl: pdfUrl,
+                generatedResumePdfPublicId: pdfPublicId
+            })
+            
+            console.log("PDF uploaded to Cloudinary:", pdfUrl)
+        } catch (cloudinaryError) {
+            console.error("Failed to upload PDF to Cloudinary:", cloudinaryError)
+            // Continue even if Cloudinary upload fails - we'll still send the PDF
+        }
 
         res.set({
             "Content-Type": "application/pdf",
