@@ -77,6 +77,12 @@ export const useInterview = () => {
             return
         }
 
+        // Validate that the current report has required fields before attempting download
+        if (report && (!report.jobDescription || (typeof report.jobDescription === 'string' && report.jobDescription.trim().length === 0))) {
+            alert("This interview report is missing a job description. Please regenerate the interview report with a job description to download the resume PDF.")
+            return
+        }
+
         console.log("Downloading resume for interview report ID:", interviewReportId)
         setLoading(true)
         try {
@@ -120,21 +126,42 @@ export const useInterview = () => {
             }
         } catch (error) {
             console.error("Error downloading resume PDF:", error)
+            console.error("Error details:", {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                message: error.message
+            })
             
             // More specific error messages
             let errorMessage = "Failed to download resume. Please try again."
+            
             if (error.response) {
-                if (error.response.status === 500) {
-                    errorMessage = "Server error while generating PDF. This may take longer than expected. Please try again in a moment."
-                } else if (error.response.status === 404) {
-                    errorMessage = "Interview report not found."
-                } else if (error.response.status === 403) {
+                const status = error.response.status
+                const responseData = error.response.data
+                
+                // Handle 400 Bad Request with specific messages
+                if (status === 400) {
+                    if (responseData && responseData.message) {
+                        errorMessage = responseData.message
+                    } else {
+                        errorMessage = "Invalid request. The interview report may be missing required information. Please regenerate the interview report with all required fields."
+                    }
+                } else if (status === 404) {
+                    errorMessage = "Interview report not found. Please refresh the page and try again."
+                } else if (status === 403) {
                     errorMessage = "You don't have permission to download this resume."
-                } else if (error.response.data && error.response.data.message) {
-                    errorMessage = error.response.data.message
+                } else if (status === 500) {
+                    errorMessage = "Server error while generating PDF. This may take longer than expected. Please try again in a moment."
+                } else if (status === 504) {
+                    errorMessage = "PDF generation timed out. This may take longer than expected. Please try again."
+                } else if (responseData && responseData.message) {
+                    errorMessage = responseData.message
                 }
             } else if (error.code === 'ECONNABORTED') {
                 errorMessage = "Request timed out. PDF generation is taking longer than expected. Please try again."
+            } else if (error.request && !error.response) {
+                errorMessage = "Network error. Please check your internet connection and try again."
             }
             
             alert(errorMessage)

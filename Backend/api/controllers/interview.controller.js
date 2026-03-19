@@ -291,16 +291,23 @@ async function generateResumePdfController(req, res) {
         // Generate PDF with timeout handling
         console.log("Starting PDF generation for interview report:", interviewReportId)
 
-        const pdfBuffer = await Promise.race([
-            generateResumePdf({
-                resume: resume || "",
-                jobDescription,
-                selfDescription: selfDescription || ""
-            }),
-            new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("PDF generation timeout after 50 seconds")), 50000)
-            )
-        ])
+        let pdfBuffer
+        try {
+            pdfBuffer = await Promise.race([
+                generateResumePdf({
+                    resume: resume || "",
+                    jobDescription,
+                    selfDescription: selfDescription || ""
+                }),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error("PDF generation timeout after 50 seconds")), 50000)
+                )
+            ])
+        } catch (pdfGenError) {
+            console.error("Error during PDF generation:", pdfGenError)
+            // Re-throw to be caught by outer catch block
+            throw pdfGenError
+        }
 
         if (!pdfBuffer || pdfBuffer.length === 0) {
             console.error("PDF buffer is empty")
@@ -346,6 +353,8 @@ async function generateResumePdfController(req, res) {
     } catch (error) {
         console.error("Error in generateResumePdfController:", error)
         console.error("Error stack:", error.stack)
+        console.error("Error message:", error.message)
+        console.error("Error name:", error.name)
 
         // More specific error messages
         let statusCode = 500
@@ -355,13 +364,16 @@ async function generateResumePdfController(req, res) {
         if (error.message && error.message.includes("timeout")) {
             statusCode = 504
             message = "PDF generation timed out. This may take longer than expected. Please try again."
-        } else if (error.message && error.message.includes("Puppeteer") || error.message.includes("browser")) {
+        } else if (error.message && (error.message.includes("Puppeteer") || error.message.includes("browser"))) {
+            statusCode = 503
             message = "PDF generation service is temporarily unavailable. Please try again in a few moments."
-        } else if (error.message && (error.message.includes("JSON") || error.message.includes("parse") || error.message.includes("invalid response format"))) {
+        } else if (error.message && (error.message.includes("JSON") || error.message.includes("parse") || error.message.includes("invalid response format") || error.message.includes("invalid response"))) {
             // AI service response parsing errors
+            statusCode = 400
             message = "Unable to generate resume PDF. The AI service returned an unexpected response. Please try regenerating your interview report."
         } else if (error.message && error.message.includes("AI service")) {
             // AI service errors
+            statusCode = 503
             if (error.message.includes("did not return")) {
                 message = "AI service is not responding. Please try again in a few moments."
             } else if (error.message.includes("empty or invalid")) {
@@ -370,8 +382,10 @@ async function generateResumePdfController(req, res) {
                 message = "AI service error occurred. Please try again later."
             }
         } else if (error.message && error.message.includes("HTML content")) {
+            statusCode = 400
             message = "Resume content could not be generated. Please try regenerating your interview report."
         } else if (error.message && error.message.includes("PDF buffer")) {
+            statusCode = 500
             message = "Failed to create PDF file. Please try again."
         }
 
@@ -386,7 +400,10 @@ async function generateResumePdfController(req, res) {
             errorResponse.stack = error.stack
         }
 
-        res.status(statusCode).json(errorResponse)
+        // Ensure we always send a response
+        if (!res.headersSent) {
+            return res.status(statusCode).json(errorResponse)
+        }
     }
 }
 
