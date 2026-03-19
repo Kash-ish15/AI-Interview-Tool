@@ -11,55 +11,23 @@ const allowedOrigins = [
   "https://ai-interview-tool-164d.vercel.app"
 ];
 
+// Simple CORS configuration - cors package handles OPTIONS automatically
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, Postman, etc.)
-    if (!origin) {
-      return callback(null, true);
-    }
-    
-    // Allow all vercel preview URLs
-    if (
-      allowedOrigins.includes(origin) ||
-      origin.includes("vercel.app")
-    ) {
+    // Allow requests with no origin or from allowed origins
+    if (!origin || allowedOrigins.includes(origin) || origin.includes("vercel.app")) {
       callback(null, true);
     } else {
-      // Reject other origins
       callback(null, false);
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Content-Type'],
-  maxAge: 86400 // 24 hours
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 };
 
-// ✅ Apply CORS middleware FIRST
+// Apply CORS middleware - this automatically handles OPTIONS preflight requests
 app.use(cors(corsOptions));
-
-// Explicit OPTIONS handler for all routes - must be before other routes
-app.options("*", (req, res) => {
-  const origin = req.headers.origin;
-  
-  // Check if origin is allowed
-  const isAllowed = !origin || 
-    allowedOrigins.includes(origin) || 
-    origin.includes("vercel.app");
-  
-  if (isAllowed && origin) {
-    res.header("Access-Control-Allow-Origin", origin);
-  } else if (isAllowed) {
-    res.header("Access-Control-Allow-Origin", "*");
-  }
-  
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Max-Age", "86400");
-  res.sendStatus(200);
-});
 
 // ✅ Then parsers
 app.use(express.json());
