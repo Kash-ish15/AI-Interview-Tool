@@ -41,29 +41,52 @@ async function generateInterviewReport({ resume, selfDescription, jobDescription
                         Job Description: ${jobDescription}
 `
 
-    const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: zodToJsonSchema(interviewReportSchema),
-        }
-    })
-
-    if (!response || !response.text) {
-        throw new Error("AI service did not return valid response")
+    let response
+    try {
+        response = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: zodToJsonSchema(interviewReportSchema),
+            }
+        })
+    } catch (apiError) {
+        console.error("AI API call failed:", apiError)
+        throw new Error("AI service request failed. Please try again.")
     }
 
-    const text = response.text.trim()
-    if (!text || text === 'null' || text === 'undefined') {
-        throw new Error("AI service returned empty or null response")
+    if (!response) {
+        console.error("AI service returned null/undefined response")
+        throw new Error("AI service did not return any response")
+    }
+
+    // Check response structure
+    if (typeof response.text === 'undefined' && response.response) {
+        // Some AI SDKs wrap the response
+        response = response.response
+    }
+
+    if (!response.text) {
+        console.error("AI response structure:", Object.keys(response))
+        throw new Error("AI service returned response without text content")
+    }
+
+    const text = String(response.text).trim()
+    if (!text || text.length === 0 || text === 'null' || text === 'undefined' || text === '{}' || text === '[]') {
+        console.error("AI service returned invalid text:", text)
+        throw new Error("AI service returned empty or invalid response")
     }
 
     try {
-        return JSON.parse(text)
+        const parsed = JSON.parse(text)
+        if (!parsed || typeof parsed !== 'object') {
+            throw new Error("Parsed response is not an object")
+        }
+        return parsed
     } catch (parseError) {
         console.error("Error parsing AI response:", parseError)
-        console.error("Response text (first 200 chars):", text.substring(0, 200))
+        console.error("Response text (first 500 chars):", text.substring(0, 500))
         // Don't expose the JSON.parse error message directly
         throw new Error("AI service returned invalid response format")
     }
@@ -172,8 +195,19 @@ async function generateResumePdf({ resume, selfDescription, jobDescription }) {
             throw new Error("AI service returned invalid response format")
         }
 
-        if (!jsonContent || !jsonContent.html) {
-            throw new Error("AI service did not return HTML content")
+        if (!jsonContent) {
+            console.error("Parsed JSON content is null or undefined")
+            throw new Error("AI service returned empty JSON response")
+        }
+        
+        if (!jsonContent.html) {
+            console.error("JSON content missing html field:", Object.keys(jsonContent))
+            throw new Error("AI service did not return HTML content in response")
+        }
+        
+        if (typeof jsonContent.html !== 'string' || jsonContent.html.trim().length === 0) {
+            console.error("HTML content is empty or not a string")
+            throw new Error("AI service returned empty HTML content")
         }
 
         const pdfBuffer = await generatePdfFromHtml(jsonContent.html)

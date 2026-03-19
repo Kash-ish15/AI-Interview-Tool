@@ -78,14 +78,24 @@ app.use((err, req, res, next) => {
   let message = "Internal Server Error"
   
   if (err.message) {
-    // Filter out technical error messages
-    if (err.message.includes("JSON") || err.message.includes("Unexpected token")) {
-      message = "Invalid data format. Please try again."
+    // Filter out technical error messages and provide user-friendly alternatives
+    if (err.message.includes("JSON") || err.message.includes("Unexpected token") || err.message.includes("parse")) {
+      // Check if this is from a specific route to provide better context
+      if (err.message.includes("AI service") || err.message.includes("resume") || err.message.includes("interview")) {
+        message = "Unable to process the request. Please try regenerating your interview report."
+      } else {
+        message = "Invalid data format. Please try again."
+      }
     } else if (err.message.includes("timeout")) {
       message = "Request timed out. Please try again."
+    } else if (err.message.includes("AI service") || err.message.includes("generateContent")) {
+      message = "AI service is temporarily unavailable. Please try again in a few moments."
     } else if (process.env.NODE_ENV === "development") {
       // In development, show the actual error
       message = err.message
+    } else {
+      // For other errors, use a generic message
+      message = "An error occurred. Please try again."
     }
   }
   

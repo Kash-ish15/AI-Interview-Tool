@@ -227,18 +227,28 @@ async function generateResumePdfController(req, res) {
         let statusCode = 500
         let message = "Internal server error"
         
-        // Check for specific error types
+        // Check for specific error types and provide helpful messages
         if (error.message && error.message.includes("timeout")) {
             statusCode = 504
-            message = "PDF generation timed out. Please try again."
-        } else if (error.message && error.message.includes("Puppeteer")) {
-            message = "PDF generation service unavailable. Please try again later."
-        } else if (error.message && error.message.includes("JSON")) {
-            // JSON parsing errors - don't expose internal details
-            message = "Failed to process resume data. Please try regenerating the interview report."
+            message = "PDF generation timed out. This may take longer than expected. Please try again."
+        } else if (error.message && error.message.includes("Puppeteer") || error.message.includes("browser")) {
+            message = "PDF generation service is temporarily unavailable. Please try again in a few moments."
+        } else if (error.message && (error.message.includes("JSON") || error.message.includes("parse") || error.message.includes("invalid response format"))) {
+            // AI service response parsing errors
+            message = "Unable to generate resume PDF. The AI service returned an unexpected response. Please try regenerating your interview report."
         } else if (error.message && error.message.includes("AI service")) {
             // AI service errors
-            message = "AI service error. Please try again later."
+            if (error.message.includes("did not return")) {
+                message = "AI service is not responding. Please try again in a few moments."
+            } else if (error.message.includes("empty or invalid")) {
+                message = "AI service returned incomplete data. Please try regenerating your interview report."
+            } else {
+                message = "AI service error occurred. Please try again later."
+            }
+        } else if (error.message && error.message.includes("HTML content")) {
+            message = "Resume content could not be generated. Please try regenerating your interview report."
+        } else if (error.message && error.message.includes("PDF buffer")) {
+            message = "Failed to create PDF file. Please try again."
         }
         
         // Don't expose internal error messages in production
