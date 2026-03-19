@@ -29,6 +29,12 @@ const corsOptions = {
 // Apply CORS middleware - this automatically handles OPTIONS preflight requests
 app.use(cors(corsOptions));
 
+// Request logging middleware (for debugging)
+app.use((req, res, next) => {
+    console.log(`${req.method} ${req.path}`);
+    next();
+});
+
 // ✅ Then parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -47,6 +53,14 @@ const interviewRouter = require("./routes/interview.routes");
 app.use("/api/auth", authRouter);
 app.use("/api/interview", interviewRouter);
 
+// Debug route to check if app is working
+app.get("/api/health", (req, res) => {
+    res.status(200).json({
+        message: "API is working",
+        timestamp: new Date().toISOString()
+    });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error("Error:", err);
@@ -56,10 +70,13 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
+// 404 handler - must be last
 app.use((req, res) => {
+  console.log(`404 - Route not found: ${req.method} ${req.path}`);
   res.status(404).json({
-    message: "Route not found"
+    message: "Route not found",
+    path: req.path,
+    method: req.method
   });
 });
 
