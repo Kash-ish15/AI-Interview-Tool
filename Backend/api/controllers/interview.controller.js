@@ -217,11 +217,48 @@ async function generateResumePdfController(req, res) {
             })
         }
 
-        // Check if PDF already exists in Cloudinary
+        // Check if PDF already exists in Cloudinary - fetch and return it
         if (interviewReport.generatedResumePdfUrl) {
-            console.log("Resume PDF already exists, redirecting to Cloudinary URL")
-            // Redirect to Cloudinary URL for direct download
-            return res.redirect(interviewReport.generatedResumePdfUrl)
+            console.log("Resume PDF already exists in Cloudinary, fetching:", interviewReport.generatedResumePdfUrl)
+            try {
+                // Fetch PDF from Cloudinary using https module
+                const https = require('https')
+                const http = require('http')
+                const url = require('url')
+                
+                const pdfBuffer = await new Promise((resolve, reject) => {
+                    const parsedUrl = new URL(interviewReport.generatedResumePdfUrl)
+                    const client = parsedUrl.protocol === 'https:' ? https : http
+                    
+                    client.get(interviewReport.generatedResumePdfUrl, (response) => {
+                        if (response.statusCode !== 200) {
+                            reject(new Error(`Failed to fetch PDF: ${response.statusCode}`))
+                            return
+                        }
+                        
+                        const chunks = []
+                        response.on('data', (chunk) => chunks.push(chunk))
+                        response.on('end', () => {
+                            resolve(Buffer.concat(chunks))
+                        })
+                        response.on('error', reject)
+                    }).on('error', reject)
+                })
+                
+                console.log("PDF fetched from Cloudinary, size:", pdfBuffer.length)
+                
+                res.set({
+                    "Content-Type": "application/pdf",
+                    "Content-Disposition": `attachment; filename=resume_${interviewReportId}.pdf`,
+                    "Content-Length": pdfBuffer.length,
+                    "Cache-Control": "no-store"
+                })
+                
+                return res.send(pdfBuffer)
+            } catch (fetchError) {
+                console.error("Error fetching PDF from Cloudinary, will generate new one:", fetchError)
+                // Fall through to generate new PDF
+            }
         }
 
         // Generate PDF with timeout handling
