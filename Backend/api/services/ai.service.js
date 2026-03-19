@@ -50,7 +50,22 @@ async function generateInterviewReport({ resume, selfDescription, jobDescription
         }
     })
 
-    return JSON.parse(response.text)
+    if (!response || !response.text) {
+        throw new Error("AI service did not return valid response")
+    }
+
+    const text = response.text.trim()
+    if (!text || text === 'null' || text === 'undefined') {
+        throw new Error("AI service returned empty or null response")
+    }
+
+    try {
+        return JSON.parse(text)
+    } catch (parseError) {
+        console.error("Error parsing AI response:", parseError)
+        console.error("Response text:", text)
+        throw new Error("Failed to parse AI response as JSON")
+    }
 
 
 }
@@ -132,7 +147,19 @@ async function generateResumePdf({ resume, selfDescription, jobDescription }) {
             throw new Error("AI service did not return valid response")
         }
 
-        const jsonContent = JSON.parse(response.text)
+        const text = response.text.trim()
+        if (!text || text === 'null' || text === 'undefined') {
+            throw new Error("AI service returned empty or null response")
+        }
+
+        let jsonContent
+        try {
+            jsonContent = JSON.parse(text)
+        } catch (parseError) {
+            console.error("Error parsing AI response:", parseError)
+            console.error("Response text:", text)
+            throw new Error("Failed to parse AI response as JSON")
+        }
 
         if (!jsonContent || !jsonContent.html) {
             throw new Error("AI service did not return HTML content")

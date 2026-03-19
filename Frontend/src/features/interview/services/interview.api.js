@@ -28,11 +28,31 @@ api.interceptors.response.use(
             if (error.config && error.config.responseType === 'blob' && error.response.data instanceof Blob) {
                 try {
                     const text = await error.response.data.text()
-                    const json = JSON.parse(text)
-                    error.response.data = json
-                    console.error("API Error (parsed from blob):", error.response.status, json)
-                } catch (parseError) {
-                    console.error("API Error (could not parse blob):", error.response.status, error.response.data)
+                    
+                    // Check if text is valid JSON (not empty, not "null" string)
+                    if (text && text.trim() && text.trim() !== 'null' && text.trim() !== 'undefined') {
+                        try {
+                            const json = JSON.parse(text)
+                            error.response.data = json
+                            console.error("API Error (parsed from blob):", error.response.status, json)
+                        } catch (parseError) {
+                            // If JSON.parse fails, keep the text as is
+                            error.response.data = { message: text || "Unknown error" }
+                            console.error("API Error (invalid JSON in blob):", error.response.status, text)
+                        }
+                    } else {
+                        // Empty or null response
+                        error.response.data = { 
+                            message: `Server error (${error.response.status}). Please try again.` 
+                        }
+                        console.error("API Error (empty/null blob):", error.response.status)
+                    }
+                } catch (blobError) {
+                    // Failed to read blob
+                    error.response.data = { 
+                        message: `Server error (${error.response.status}). Please try again.` 
+                    }
+                    console.error("API Error (could not read blob):", error.response.status, blobError)
                 }
             } else {
                 // Server responded with error status
