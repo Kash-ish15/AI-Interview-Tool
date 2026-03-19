@@ -2,11 +2,14 @@ require("dotenv").config()
 const app = require("./api/app")
 const connectToDB = require("./api/config/database")
 
-connectToDB()
+// Connect to database
+connectToDB().catch(err => {
+    console.error("Database connection error:", err);
+});
 
-app.get("/", (req,res)=>{
+app.get("/", (req, res) => {
     res.send("Server started");
-})
-// app.listen(3000, () => {
-//     console.log("Server is running on port 3000")
-// })
+});
+
+// For Vercel serverless functions
+module.exports = app;
