@@ -1,9 +1,41 @@
 import axios from "axios";
 
 const api = axios.create({
-    baseURL: "http://56.228.21.13:3000",
+    baseURL: import.meta.env.VITE_BACKEND_URL || "https://ai-interview-tool-one.vercel.app",
     withCredentials: true,
+    headers: {
+        'Content-Type': 'application/json',
+    },
+    timeout: 30000, // 30 seconds timeout for file uploads
 })
+
+// Request interceptor
+api.interceptors.request.use(
+    (config) => {
+        return config
+    },
+    (error) => {
+        return Promise.reject(error)
+    }
+)
+
+// Response interceptor for better error handling
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response) {
+            // Server responded with error status
+            console.error("API Error:", error.response.status, error.response.data)
+        } else if (error.request) {
+            // Request made but no response received
+            console.error("Network Error:", error.request)
+        } else {
+            // Something else happened
+            console.error("Error:", error.message)
+        }
+        return Promise.reject(error)
+    }
+)
 
 
 /**
