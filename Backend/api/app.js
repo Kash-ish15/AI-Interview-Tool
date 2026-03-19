@@ -6,28 +6,32 @@ const helmet = require("helmet");
 
 const app = express();
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://ai-interview-tool-164d.vercel.app"
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("CORS not allowed"));
+    }
+  },
+  credentials: true
+};
+
+// ✅ Apply CORS FIRST
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions)); // ✅ same config
+
+// ✅ Then parsers
 app.use(express.json());
 app.use(cookieParser());
 
-app.use(cors({
-  origin: "https://ai-interview-tool-164d.vercel.app",
-  credentials: true
-}));
-
-app.use(
-  helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        connectSrc: [
-          "'self'",
-          process.env.BACKEND,
-          process.env.FRONTENDPORT
-        ],
-      },
-    },
-  })
-);
+// ✅ Helmet (safe version)
+app.use(helmet({ contentSecurityPolicy: false }));
 
 // routes
 const authRouter = require("./routes/auth.routes");
