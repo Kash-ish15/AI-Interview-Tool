@@ -77,6 +77,7 @@ export const useInterview = () => {
             return
         }
 
+        console.log("Downloading resume for interview report ID:", interviewReportId)
         setLoading(true)
         try {
             const response = await generateResumePdf({ interviewReportId })

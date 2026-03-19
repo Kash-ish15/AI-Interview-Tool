@@ -22,10 +22,22 @@ api.interceptors.request.use(
 // Response interceptor for better error handling
 api.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error) => {
         if (error.response) {
-            // Server responded with error status
-            console.error("API Error:", error.response.status, error.response.data)
+            // If we expected a blob but got an error, try to parse JSON error message
+            if (error.config && error.config.responseType === 'blob' && error.response.data instanceof Blob) {
+                try {
+                    const text = await error.response.data.text()
+                    const json = JSON.parse(text)
+                    error.response.data = json
+                    console.error("API Error (parsed from blob):", error.response.status, json)
+                } catch (parseError) {
+                    console.error("API Error (could not parse blob):", error.response.status, error.response.data)
+                }
+            } else {
+                // Server responded with error status
+                console.error("API Error:", error.response.status, error.response.data)
+            }
         } else if (error.request) {
             // Request made but no response received
             console.error("Network Error:", error.request)

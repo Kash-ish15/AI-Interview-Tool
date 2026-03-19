@@ -140,14 +140,29 @@ async function generateResumePdfController(req, res) {
     try {
         const { interviewReportId } = req.params
 
+        console.log("PDF generation request - interviewReportId:", interviewReportId)
+        console.log("PDF generation request - user ID:", req.user?.id)
+
         // Validate interviewReportId
         if (!interviewReportId || interviewReportId.trim().length === 0) {
+            console.error("Missing interviewReportId in request")
             return res.status(400).json({
                 message: "Interview report ID is required"
             })
         }
 
+        // Validate MongoDB ObjectId format
+        const mongoose = require("mongoose")
+        if (!mongoose.Types.ObjectId.isValid(interviewReportId)) {
+            console.error("Invalid interviewReportId format:", interviewReportId)
+            return res.status(400).json({
+                message: "Invalid interview report ID format"
+            })
+        }
+
         const interviewReport = await interviewReportModel.findById(interviewReportId)
+        
+        console.log("Found interview report:", interviewReport ? "Yes" : "No")
 
         if (!interviewReport) {
             return res.status(404).json({
@@ -164,10 +179,13 @@ async function generateResumePdfController(req, res) {
 
         const { resume, jobDescription, selfDescription } = interviewReport
 
+        console.log("Interview report data - has resume:", !!resume, "has jobDescription:", !!jobDescription, "has selfDescription:", !!selfDescription)
+
         // Validate required fields
         if (!jobDescription || jobDescription.trim().length === 0) {
+            console.error("Job description is missing from interview report")
             return res.status(400).json({
-                message: "Job description is missing from the interview report"
+                message: "Job description is missing from the interview report. Please regenerate the interview report with a job description."
             })
         }
 
