@@ -11,16 +11,21 @@ const allowedOrigins = [
   "https://ai-interview-tool-164d.vercel.app"
 ];
 
-const corsOptions = {
+app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    // allow all vercel preview URLs
+    if (
+      !origin ||
+      allowedOrigins.includes(origin) ||
+      origin.includes("vercel.app") // ✅ THIS LINE FIXES IT
+    ) {
       callback(null, true);
     } else {
       callback(new Error("CORS not allowed"));
     }
   },
   credentials: true
-};
+}));
 
 // ✅ Apply CORS FIRST
 app.use(cors(corsOptions));
