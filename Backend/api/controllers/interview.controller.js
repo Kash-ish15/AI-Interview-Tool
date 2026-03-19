@@ -181,8 +181,8 @@ async function generateResumePdfController(req, res) {
 
         console.log("Interview report data - has resume:", !!resume, "has jobDescription:", !!jobDescription, "has selfDescription:", !!selfDescription)
 
-        // Validate required fields
-        if (!jobDescription || jobDescription.trim().length === 0) {
+        // Validate required fields - handle null/undefined safely
+        if (!jobDescription || (typeof jobDescription === 'string' && jobDescription.trim().length === 0)) {
             console.error("Job description is missing from interview report")
             return res.status(400).json({
                 message: "Job description is missing from the interview report. Please regenerate the interview report with a job description."
