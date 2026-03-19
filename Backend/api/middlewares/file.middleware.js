@@ -4,7 +4,7 @@ const multer = require("multer")
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-        fileSize: 5 * 1024 * 1024 // 5MB (matching frontend limit)
+        fileSize: 10 * 1024 * 1024 // 10MB (increased since we're using Cloudinary for storage)
     },
     fileFilter: (req, file, cb) => {
         // Accept only PDF and DOCX files

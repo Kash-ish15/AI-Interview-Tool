@@ -72,6 +72,12 @@ const interviewReportSchema = new mongoose.Schema({
     resume: {
         type: String,
     },
+    resumeFileUrl: {
+        type: String, // Cloudinary URL for the uploaded resume file
+    },
+    resumeFilePublicId: {
+        type: String, // Cloudinary public ID for file deletion
+    },
     selfDescription: {
         type: String,
     },

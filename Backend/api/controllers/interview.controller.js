@@ -1,6 +1,7 @@
 const pdfParse = require("pdf-parse")
 const { generateInterviewReport, generateResumePdf } = require("../services/ai.service")
 const interviewReportModel = require("../models/interviewReport.model")
+const { uploadToCloudinary, deleteFromCloudinary } = require("../config/cloudinary")
 
 
 
@@ -11,14 +12,14 @@ const interviewReportModel = require("../models/interviewReport.model")
 async function generateInterViewReportController(req, res) {
     try {
         const { selfDescription, jobDescription } = req.body
-        
+
         // Validate job description is provided
         if (!jobDescription || jobDescription.trim().length === 0) {
             return res.status(400).json({
                 message: "Job description is required"
             })
         }
-        
+
         // Validate that either resume or selfDescription is provided
         if (!req.file && (!selfDescription || selfDescription.trim().length === 0)) {
             return res.status(400).json({
@@ -27,8 +28,10 @@ async function generateInterViewReportController(req, res) {
         }
 
         let resumeText = ""
-        
-        // Parse PDF if file is uploaded
+        let resumeFileUrl = null
+        let resumeFilePublicId = null
+
+        // Parse PDF and upload to Cloudinary if file is uploaded
         if (req.file) {
             // Check if file is PDF (pdf-parse only supports PDF)
             if (req.file.mimetype !== 'application/pdf') {
@@ -36,15 +39,32 @@ async function generateInterViewReportController(req, res) {
                     message: "Only PDF files are supported for resume upload. Please convert your DOCX file to PDF."
                 })
             }
-            
+
             try {
+                // Parse PDF to extract text
                 const pdfData = await pdfParse(req.file.buffer)
                 resumeText = pdfData.text || ""
-                
+
                 if (!resumeText || resumeText.trim().length === 0) {
                     return res.status(400).json({
                         message: "The PDF file appears to be empty or could not be read. Please ensure it contains text."
                     })
+                }
+
+                // Upload to Cloudinary for storage
+                try {
+                    const cloudinaryResult = await uploadToCloudinary(
+                        req.file.buffer,
+                        'resumes',
+                        'raw' // PDF files as raw type
+                    )
+                    resumeFileUrl = cloudinaryResult.secure_url
+                    resumeFilePublicId = cloudinaryResult.public_id
+                    console.log("File uploaded to Cloudinary:", resumeFileUrl)
+                } catch (cloudinaryError) {
+                    console.error("Cloudinary upload error:", cloudinaryError)
+                    // Continue without Cloudinary URL if upload fails (non-critical)
+                    // The resume text is already extracted
                 }
             } catch (pdfError) {
                 console.error("Error parsing PDF:", pdfError)
@@ -55,16 +75,24 @@ async function generateInterViewReportController(req, res) {
         }
 
         // Generate interview report using AI
-        const interViewReportByAi = await generateInterviewReport({
-            resume: resumeText,
-            selfDescription: selfDescription || "",
-            jobDescription
-        })
-
+        let interViewReportByAi;
+        try {
+            interViewReportByAi = await generateInterviewReport({
+                resume: resumeText,
+                selfDescription: selfDescription || "",
+                jobDescription
+            })
+        } catch (err) {
+            return res.status(502).json({
+                message: "AI service failed. Please try again."
+            })
+        }
         // Save to database
         const interviewReport = await interviewReportModel.create({
             user: req.user.id,
             resume: resumeText,
+            resumeFileUrl: resumeFileUrl,
+            resumeFilePublicId: resumeFilePublicId,
             selfDescription: selfDescription || "",
             jobDescription,
             ...interViewReportByAi
@@ -161,7 +189,7 @@ async function generateResumePdfController(req, res) {
         }
 
         const interviewReport = await interviewReportModel.findById(interviewReportId)
-        
+
         console.log("Found interview report:", interviewReport ? "Yes" : "No")
 
         if (!interviewReport) {
@@ -191,14 +219,14 @@ async function generateResumePdfController(req, res) {
 
         // Generate PDF with timeout handling
         console.log("Starting PDF generation for interview report:", interviewReportId)
-        
+
         const pdfBuffer = await Promise.race([
-            generateResumePdf({ 
-                resume: resume || "", 
-                jobDescription, 
-                selfDescription: selfDescription || "" 
+            generateResumePdf({
+                resume: resume || "",
+                jobDescription,
+                selfDescription: selfDescription || ""
             }),
-            new Promise((_, reject) => 
+            new Promise((_, reject) =>
                 setTimeout(() => reject(new Error("PDF generation timeout after 50 seconds")), 50000)
             )
         ])
@@ -215,18 +243,19 @@ async function generateResumePdfController(req, res) {
         res.set({
             "Content-Type": "application/pdf",
             "Content-Disposition": `attachment; filename=resume_${interviewReportId}.pdf`,
-            "Content-Length": pdfBuffer.length
+            "Content-Length": pdfBuffer.length,
+            "Cache-Control": "no-store"
         })
 
         res.send(pdfBuffer)
     } catch (error) {
         console.error("Error in generateResumePdfController:", error)
         console.error("Error stack:", error.stack)
-        
+
         // More specific error messages
         let statusCode = 500
         let message = "Internal server error"
-        
+
         // Check for specific error types and provide helpful messages
         if (error.message && error.message.includes("timeout")) {
             statusCode = 504
@@ -250,18 +279,18 @@ async function generateResumePdfController(req, res) {
         } else if (error.message && error.message.includes("PDF buffer")) {
             message = "Failed to create PDF file. Please try again."
         }
-        
+
         // Don't expose internal error messages in production
         const errorResponse = {
             message: message
         }
-        
+
         // Only include detailed error in development
         if (process.env.NODE_ENV === "development") {
             errorResponse.error = error.message
             errorResponse.stack = error.stack
         }
-        
+
         res.status(statusCode).json(errorResponse)
     }
 }
