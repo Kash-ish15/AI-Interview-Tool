@@ -11,7 +11,7 @@ const allowedOrigins = [
   "https://ai-interview-tool-164d.vercel.app"
 ];
 
-app.use(cors({
+const corsOptions = {
   origin: function (origin, callback) {
     // allow all vercel preview URLs
     if (
@@ -25,11 +25,11 @@ app.use(cors({
     }
   },
   credentials: true
-}));
+};
 
 // ✅ Apply CORS FIRST
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions)); // ✅ same config
+app.options("*", cors(corsOptions)); // ✅ Handle preflight requests
 
 // ✅ Then parsers
 app.use(express.json());
