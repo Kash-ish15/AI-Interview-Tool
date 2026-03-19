@@ -10,7 +10,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use(cors({
-  origin: PROCESS.ENV.FRONTENDPORT,
+  origin: process.env.FRONTENDPORT,
   credentials: true
 }));
 
@@ -21,8 +21,8 @@ app.use(
         defaultSrc: ["'self'"],
         connectSrc: [
           "'self'",
-          Process.env.BACKEND,
-          PROCESS.ENV.FRONTENDPORT
+          process.env.BACKEND,
+          process.env.FRONTENDPORT
         ],
       },
     },
