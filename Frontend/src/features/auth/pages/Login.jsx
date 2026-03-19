@@ -1,4 +1,4 @@
-import React,{useState} from 'react'
+import React,{useState, useRef} from 'react'
 import { useNavigate, Link } from 'react-router'
 import "../auth.form.scss"
 import { useAuth } from '../hooks/useAuth'
@@ -7,14 +7,30 @@ const Login = () => {
 
     const { loading, handleLogin } = useAuth()
     const navigate = useNavigate()
+    const isSubmitting = useRef(false)
 
     const [ email, setEmail ] = useState("")
     const [ password, setPassword ] = useState("")
 
     const handleSubmit = async (e) => {
         e.preventDefault()
-        await handleLogin({email,password})
-        navigate('/')
+        
+        // Prevent double submission
+        if (isSubmitting.current || loading) {
+            return
+        }
+        
+        isSubmitting.current = true
+        try {
+            const result = await handleLogin({email, password})
+            if (result && result.success) {
+                navigate('/')
+            }
+        } catch (err) {
+            console.error("Login failed:", err)
+        } finally {
+            isSubmitting.current = false
+        }
     }
 
     if(loading){
@@ -39,7 +55,13 @@ const Login = () => {
                             onChange={(e) => { setPassword(e.target.value) }}
                             type="password" id="password" name='password' placeholder='Enter password' />
                     </div>
-                    <button className='button primary-button' >Login</button>
+                    <button 
+                        type="submit"
+                        className='button primary-button'
+                        disabled={loading || isSubmitting.current}
+                    >
+                        {loading ? 'Logging in...' : 'Login'}
+                    </button>
                 </form>
                 <p>Don't have an account? <Link to={"/register"} >Register</Link> </p>
             </div>
