@@ -140,6 +140,13 @@ async function generateResumePdfController(req, res) {
     try {
         const { interviewReportId } = req.params
 
+        // Validate interviewReportId
+        if (!interviewReportId || interviewReportId.trim().length === 0) {
+            return res.status(400).json({
+                message: "Interview report ID is required"
+            })
+        }
+
         const interviewReport = await interviewReportModel.findById(interviewReportId)
 
         if (!interviewReport) {
@@ -157,18 +164,38 @@ async function generateResumePdfController(req, res) {
 
         const { resume, jobDescription, selfDescription } = interviewReport
 
-        const pdfBuffer = await generateResumePdf({ resume, jobDescription, selfDescription })
+        // Validate required fields
+        if (!jobDescription || jobDescription.trim().length === 0) {
+            return res.status(400).json({
+                message: "Job description is missing from the interview report"
+            })
+        }
+
+        // Generate PDF
+        const pdfBuffer = await generateResumePdf({ 
+            resume: resume || "", 
+            jobDescription, 
+            selfDescription: selfDescription || "" 
+        })
+
+        if (!pdfBuffer || pdfBuffer.length === 0) {
+            return res.status(500).json({
+                message: "Failed to generate PDF"
+            })
+        }
 
         res.set({
             "Content-Type": "application/pdf",
-            "Content-Disposition": `attachment; filename=resume_${interviewReportId}.pdf`
+            "Content-Disposition": `attachment; filename=resume_${interviewReportId}.pdf`,
+            "Content-Length": pdfBuffer.length
         })
 
         res.send(pdfBuffer)
     } catch (error) {
         console.error("Error in generateResumePdfController:", error)
         res.status(500).json({
-            message: "Internal server error"
+            message: "Internal server error",
+            error: process.env.NODE_ENV === "development" ? error.message : undefined
         })
     }
 }
