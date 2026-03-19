@@ -1,36 +1,39 @@
-const express = require("express")
-const cookieParser = require("cookie-parser")
-const cors = require("cors")
+require("dotenv").config()
+const express = require("express");
+const cookieParser = require("cookie-parser");
+const cors = require("cors");
 const helmet = require("helmet");
-const app = express()
 
-app.use(express.json())
-app.use(cookieParser())
+const app = express();
+
+app.use(express.json());
+app.use(cookieParser());
+
 app.use(cors({
-    origin: "http://localhost:5173",
-    credentials: true
-}))
+  origin: PROCESS.ENV.FRONTENDPORT,
+  credentials: true
+}));
+
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        connectSrc: ["'self'", "http://localhost:3000"],
+        connectSrc: [
+          "'self'",
+          Process.env.BACKEND,
+          PROCESS.ENV.FRONTENDPORT
+        ],
       },
     },
   })
 );
 
+// routes
+const authRouter = require("./routes/auth.routes");
+const interviewRouter = require("./routes/interview.routes");
 
-/* require all the routes here */
-const authRouter = require("./routes/auth.routes")
-const interviewRouter = require("./routes/interview.routes")
+app.use("/api/auth", authRouter);
+app.use("/api/interview", interviewRouter);
 
-
-/* using all the routes here */
-app.use("/api/auth", authRouter)
-app.use("/api/interview", interviewRouter)
-
-
-
-module.exports = app
+module.exports = app;
