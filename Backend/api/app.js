@@ -73,8 +73,24 @@ app.get("/api/health", (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error("Error:", err);
+  
+  // Don't expose internal error messages (like JSON.parse errors) in production
+  let message = "Internal Server Error"
+  
+  if (err.message) {
+    // Filter out technical error messages
+    if (err.message.includes("JSON") || err.message.includes("Unexpected token")) {
+      message = "Invalid data format. Please try again."
+    } else if (err.message.includes("timeout")) {
+      message = "Request timed out. Please try again."
+    } else if (process.env.NODE_ENV === "development") {
+      // In development, show the actual error
+      message = err.message
+    }
+  }
+  
   res.status(err.status || 500).json({
-    message: err.message || "Internal Server Error",
+    message: message,
     error: process.env.NODE_ENV === "development" ? err : {}
   });
 });

@@ -227,17 +227,32 @@ async function generateResumePdfController(req, res) {
         let statusCode = 500
         let message = "Internal server error"
         
+        // Check for specific error types
         if (error.message && error.message.includes("timeout")) {
             statusCode = 504
             message = "PDF generation timed out. Please try again."
         } else if (error.message && error.message.includes("Puppeteer")) {
             message = "PDF generation service unavailable. Please try again later."
+        } else if (error.message && error.message.includes("JSON")) {
+            // JSON parsing errors - don't expose internal details
+            message = "Failed to process resume data. Please try regenerating the interview report."
+        } else if (error.message && error.message.includes("AI service")) {
+            // AI service errors
+            message = "AI service error. Please try again later."
         }
         
-        res.status(statusCode).json({
-            message: message,
-            error: process.env.NODE_ENV === "development" ? error.message : undefined
-        })
+        // Don't expose internal error messages in production
+        const errorResponse = {
+            message: message
+        }
+        
+        // Only include detailed error in development
+        if (process.env.NODE_ENV === "development") {
+            errorResponse.error = error.message
+            errorResponse.stack = error.stack
+        }
+        
+        res.status(statusCode).json(errorResponse)
     }
 }
 

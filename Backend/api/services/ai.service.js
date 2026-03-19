@@ -63,8 +63,9 @@ async function generateInterviewReport({ resume, selfDescription, jobDescription
         return JSON.parse(text)
     } catch (parseError) {
         console.error("Error parsing AI response:", parseError)
-        console.error("Response text:", text)
-        throw new Error("Failed to parse AI response as JSON")
+        console.error("Response text (first 200 chars):", text.substring(0, 200))
+        // Don't expose the JSON.parse error message directly
+        throw new Error("AI service returned invalid response format")
     }
 
 
@@ -143,13 +144,22 @@ async function generateResumePdf({ resume, selfDescription, jobDescription }) {
             }
         })
 
-        if (!response || !response.text) {
-            throw new Error("AI service did not return valid response")
+        if (!response) {
+            throw new Error("AI service did not return any response")
         }
 
-        const text = response.text.trim()
-        if (!text || text === 'null' || text === 'undefined') {
-            throw new Error("AI service returned empty or null response")
+        // Check if response.text exists and is valid
+        if (!response.text) {
+            console.error("AI response has no text property:", response)
+            throw new Error("AI service returned response without text content")
+        }
+
+        const text = String(response.text).trim()
+        
+        // Validate text is not empty or null-like
+        if (!text || text.length === 0 || text === 'null' || text === 'undefined' || text === '{}' || text === '[]') {
+            console.error("AI service returned invalid text:", text)
+            throw new Error("AI service returned empty or invalid response")
         }
 
         let jsonContent
@@ -157,8 +167,9 @@ async function generateResumePdf({ resume, selfDescription, jobDescription }) {
             jsonContent = JSON.parse(text)
         } catch (parseError) {
             console.error("Error parsing AI response:", parseError)
-            console.error("Response text:", text)
-            throw new Error("Failed to parse AI response as JSON")
+            console.error("Response text (first 200 chars):", text.substring(0, 200))
+            // Don't expose the JSON.parse error message directly
+            throw new Error("AI service returned invalid response format")
         }
 
         if (!jsonContent || !jsonContent.html) {
