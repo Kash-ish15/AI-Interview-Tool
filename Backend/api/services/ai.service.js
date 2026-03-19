@@ -53,6 +53,7 @@ async function generateInterviewReport({ resume, selfDescription, jobDescription
         })
     } catch (apiError) {
         console.error("AI API call failed:", apiError)
+        console.error("AI API error details:", JSON.stringify(apiError, null, 2))
         throw new Error("AI service request failed. Please try again.")
     }
 
@@ -61,18 +62,46 @@ async function generateInterviewReport({ resume, selfDescription, jobDescription
         throw new Error("AI service did not return any response")
     }
 
-    // Check response structure
-    if (typeof response.text === 'undefined' && response.response) {
-        // Some AI SDKs wrap the response
-        response = response.response
+    // Log response structure for debugging
+    console.log("AI response type:", typeof response)
+    console.log("AI response keys:", Object.keys(response))
+    
+    // Handle different response structures
+    let text = null
+    
+    // Try different ways to access the text
+    if (typeof response.text === 'function') {
+        // If text is a function, call it
+        text = await response.text()
+    } else if (typeof response.text === 'string') {
+        // If text is a string property
+        text = response.text
+    } else if (response.response && typeof response.response.text === 'function') {
+        // If response is wrapped and text is a function
+        text = await response.response.text()
+    } else if (response.response && typeof response.response.text === 'string') {
+        // If response is wrapped and text is a string
+        text = response.response.text
+    } else if (response.candidates && response.candidates[0] && response.candidates[0].content) {
+        // Google GenAI might return candidates array
+        const content = response.candidates[0].content
+        if (typeof content.parts !== 'undefined' && content.parts[0]) {
+            text = content.parts[0].text || content.parts[0].text()
+        }
+    } else if (response[0] && typeof response[0].text === 'function') {
+        // Response might be an array
+        text = await response[0].text()
+    } else if (response[0] && typeof response[0].text === 'string') {
+        text = response[0].text
     }
 
-    if (!response.text) {
-        console.error("AI response structure:", Object.keys(response))
+    if (!text) {
+        console.error("AI response structure:", JSON.stringify(response, null, 2))
         throw new Error("AI service returned response without text content")
     }
 
-    const text = String(response.text).trim()
+    // Convert to string and trim
+    text = String(text).trim()
     if (!text || text.length === 0 || text === 'null' || text === 'undefined' || text === '{}' || text === '[]') {
         console.error("AI service returned invalid text:", text)
         throw new Error("AI service returned empty or invalid response")
@@ -171,13 +200,40 @@ async function generateResumePdf({ resume, selfDescription, jobDescription }) {
             throw new Error("AI service did not return any response")
         }
 
-        // Check if response.text exists and is valid
-        if (!response.text) {
-            console.error("AI response has no text property:", response)
+        // Log response structure for debugging
+        console.log("AI response type (resume):", typeof response)
+        console.log("AI response keys (resume):", Object.keys(response))
+        
+        // Handle different response structures
+        let text = null
+        
+        // Try different ways to access the text
+        if (typeof response.text === 'function') {
+            text = await response.text()
+        } else if (typeof response.text === 'string') {
+            text = response.text
+        } else if (response.response && typeof response.response.text === 'function') {
+            text = await response.response.text()
+        } else if (response.response && typeof response.response.text === 'string') {
+            text = response.response.text
+        } else if (response.candidates && response.candidates[0] && response.candidates[0].content) {
+            const content = response.candidates[0].content
+            if (typeof content.parts !== 'undefined' && content.parts[0]) {
+                text = content.parts[0].text || (typeof content.parts[0].text === 'function' ? await content.parts[0].text() : null)
+            }
+        } else if (response[0] && typeof response[0].text === 'function') {
+            text = await response[0].text()
+        } else if (response[0] && typeof response[0].text === 'string') {
+            text = response[0].text
+        }
+
+        if (!text) {
+            console.error("AI response structure (resume):", JSON.stringify(response, null, 2))
             throw new Error("AI service returned response without text content")
         }
 
-        const text = String(response.text).trim()
+        // Convert to string and trim
+        text = String(text).trim()
         
         // Validate text is not empty or null-like
         if (!text || text.length === 0 || text === 'null' || text === 'undefined' || text === '{}' || text === '[]') {

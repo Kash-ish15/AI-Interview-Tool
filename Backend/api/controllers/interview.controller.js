@@ -77,26 +77,53 @@ async function generateInterViewReportController(req, res) {
         // Generate interview report using AI
         let interViewReportByAi;
         try {
+            console.log("Starting AI interview report generation...")
             interViewReportByAi = await generateInterviewReport({
                 resume: resumeText,
                 selfDescription: selfDescription || "",
                 jobDescription
             })
+            console.log("AI interview report generated successfully")
         } catch (err) {
+            console.error("Error generating interview report:", err)
+            console.error("Error message:", err.message)
+            console.error("Error stack:", err.stack)
+            
+            // Provide more specific error messages
+            let errorMessage = "AI service failed. Please try again."
+            if (err.message && err.message.includes("invalid response format")) {
+                errorMessage = "AI service returned an invalid response. Please try regenerating your interview report."
+            } else if (err.message && err.message.includes("empty or invalid")) {
+                errorMessage = "AI service returned an empty response. Please try again."
+            } else if (err.message && err.message.includes("timeout")) {
+                errorMessage = "AI service request timed out. Please try again."
+            }
+            
             return res.status(502).json({
-                message: "AI service failed. Please try again."
+                message: errorMessage
             })
         }
         // Save to database
-        const interviewReport = await interviewReportModel.create({
-            user: req.user.id,
-            resume: resumeText,
-            resumeFileUrl: resumeFileUrl,
-            resumeFilePublicId: resumeFilePublicId,
-            selfDescription: selfDescription || "",
-            jobDescription,
-            ...interViewReportByAi
-        })
+        let interviewReport
+        try {
+            console.log("Saving interview report to database...")
+            interviewReport = await interviewReportModel.create({
+                user: req.user.id,
+                resume: resumeText,
+                resumeFileUrl: resumeFileUrl,
+                resumeFilePublicId: resumeFilePublicId,
+                selfDescription: selfDescription || "",
+                jobDescription,
+                ...interViewReportByAi
+            })
+            console.log("Interview report saved successfully, ID:", interviewReport._id)
+        } catch (dbError) {
+            console.error("Error saving interview report to database:", dbError)
+            console.error("Database error details:", JSON.stringify(dbError, null, 2))
+            return res.status(500).json({
+                message: "Failed to save interview report. Please try again."
+            })
+        }
 
         res.status(201).json({
             message: "Interview report generated successfully.",
