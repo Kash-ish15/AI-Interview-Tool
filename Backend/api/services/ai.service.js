@@ -247,8 +247,11 @@ async function generateResumePdf({ resume, selfDescription, jobDescription }) {
         } catch (parseError) {
             console.error("Error parsing AI response:", parseError)
             console.error("Response text (first 200 chars):", text.substring(0, 200))
-            // Don't expose the JSON.parse error message directly
-            throw new Error("AI service returned invalid response format")
+            // Use a specific error message that won't match global handler conditions
+            const error = new Error("AI service returned malformed JSON response")
+            error.name = "AIResponseParseError"
+            error.statusCode = 400
+            throw error
         }
 
         if (!jsonContent) {

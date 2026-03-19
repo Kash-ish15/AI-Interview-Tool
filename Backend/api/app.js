@@ -72,6 +72,12 @@ app.get("/api/health", (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
+  // If response already sent, don't try to send another response
+  if (res.headersSent) {
+    console.error("Error occurred but response already sent:", err.message);
+    return next(err);
+  }
+
   console.error("Error:", err);
   console.error("Request path:", req.path);
   console.error("Request method:", req.method);
@@ -90,7 +96,8 @@ app.use((err, req, res, next) => {
   
   if (err.message) {
     // Filter out technical error messages and provide user-friendly alternatives
-    if (err.message.includes("JSON") || err.message.includes("Unexpected token") || err.message.includes("parse") || err.message.includes("invalid response format")) {
+    // Note: "malformed JSON" errors should be handled by controllers, not here
+    if (err.message.includes("JSON") || err.message.includes("Unexpected token") || err.message.includes("parse") || (err.message.includes("invalid response format") && !err.message.includes("malformed JSON"))) {
       if (isInterviewRoute) {
         message = "Unable to process the request. Please try regenerating your interview report."
       } else if (isAuthRoute) {

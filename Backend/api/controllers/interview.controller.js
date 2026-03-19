@@ -351,24 +351,41 @@ async function generateResumePdfController(req, res) {
 
         res.send(pdfBuffer)
     } catch (error) {
+        // Ensure error is properly logged
         console.error("Error in generateResumePdfController:", error)
         console.error("Error stack:", error.stack)
         console.error("Error message:", error.message)
         console.error("Error name:", error.name)
+        console.error("Error statusCode:", error.statusCode)
+        
+        // Prevent error from escaping to global handler
+        if (res.headersSent) {
+            console.error("Response already sent, cannot send error response")
+            return
+        }
 
         // More specific error messages
         let statusCode = 500
         let message = "Internal server error"
 
         // Check for specific error types and provide helpful messages
-        if (error.message && error.message.includes("timeout")) {
+        // Check for statusCode from service layer first
+        if (error.statusCode) {
+            statusCode = error.statusCode
+        }
+        
+        if (error.name === "AIResponseParseError" || (error.message && error.message.includes("malformed JSON"))) {
+            // AI service response parsing errors
+            statusCode = 400
+            message = "Unable to generate resume PDF. The AI service returned an unexpected response. Please try regenerating your interview report."
+        } else if (error.message && error.message.includes("timeout")) {
             statusCode = 504
             message = "PDF generation timed out. This may take longer than expected. Please try again."
         } else if (error.message && (error.message.includes("Puppeteer") || error.message.includes("browser"))) {
             statusCode = 503
             message = "PDF generation service is temporarily unavailable. Please try again in a few moments."
         } else if (error.message && (error.message.includes("JSON") || error.message.includes("parse") || error.message.includes("invalid response format") || error.message.includes("invalid response"))) {
-            // AI service response parsing errors
+            // AI service response parsing errors (fallback)
             statusCode = 400
             message = "Unable to generate resume PDF. The AI service returned an unexpected response. Please try regenerating your interview report."
         } else if (error.message && error.message.includes("AI service")) {
@@ -396,13 +413,19 @@ async function generateResumePdfController(req, res) {
 
         // Only include detailed error in development
         if (process.env.NODE_ENV === "development") {
-            errorResponse.error = error.message
-            errorResponse.stack = error.stack
+            errorResponse.error = {
+                message: error.message,
+                stack: error.stack,
+                name: error.name
+            }
         }
 
-        // Ensure we always send a response
+        // Ensure we always send a response and prevent double response
         if (!res.headersSent) {
             return res.status(statusCode).json(errorResponse)
+        } else {
+            // If headers already sent, log the error but don't try to send response
+            console.error("Cannot send error response - headers already sent")
         }
     }
 }
