@@ -46,6 +46,15 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
+// Root route
+app.get("/", (req, res) => {
+    res.status(200).json({
+        message: "Server started",
+        status: "running",
+        timestamp: new Date().toISOString()
+    });
+});
+
 // routes
 const authRouter = require("./routes/auth.routes");
 const interviewRouter = require("./routes/interview.routes");

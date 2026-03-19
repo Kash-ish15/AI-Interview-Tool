@@ -7,9 +7,6 @@ connectToDB().catch(err => {
     console.error("Database connection error:", err);
 });
 
-app.get("/", (req, res) => {
-    res.send("Server started");
-});
-
 // For Vercel serverless functions
+// Note: All routes are defined in ./api/app.js
 module.exports = app;

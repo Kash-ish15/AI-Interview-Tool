@@ -171,18 +171,28 @@ async function generateResumePdfController(req, res) {
             })
         }
 
-        // Generate PDF
-        const pdfBuffer = await generateResumePdf({ 
-            resume: resume || "", 
-            jobDescription, 
-            selfDescription: selfDescription || "" 
-        })
+        // Generate PDF with timeout handling
+        console.log("Starting PDF generation for interview report:", interviewReportId)
+        
+        const pdfBuffer = await Promise.race([
+            generateResumePdf({ 
+                resume: resume || "", 
+                jobDescription, 
+                selfDescription: selfDescription || "" 
+            }),
+            new Promise((_, reject) => 
+                setTimeout(() => reject(new Error("PDF generation timeout after 50 seconds")), 50000)
+            )
+        ])
 
         if (!pdfBuffer || pdfBuffer.length === 0) {
+            console.error("PDF buffer is empty")
             return res.status(500).json({
-                message: "Failed to generate PDF"
+                message: "Failed to generate PDF - empty buffer"
             })
         }
+
+        console.log("PDF generated successfully, size:", pdfBuffer.length)
 
         res.set({
             "Content-Type": "application/pdf",
@@ -193,8 +203,21 @@ async function generateResumePdfController(req, res) {
         res.send(pdfBuffer)
     } catch (error) {
         console.error("Error in generateResumePdfController:", error)
-        res.status(500).json({
-            message: "Internal server error",
+        console.error("Error stack:", error.stack)
+        
+        // More specific error messages
+        let statusCode = 500
+        let message = "Internal server error"
+        
+        if (error.message && error.message.includes("timeout")) {
+            statusCode = 504
+            message = "PDF generation timed out. Please try again."
+        } else if (error.message && error.message.includes("Puppeteer")) {
+            message = "PDF generation service unavailable. Please try again later."
+        }
+        
+        res.status(statusCode).json({
+            message: message,
             error: process.env.NODE_ENV === "development" ? error.message : undefined
         })
     }

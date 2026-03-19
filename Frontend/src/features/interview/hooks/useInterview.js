@@ -73,6 +73,7 @@ export const useInterview = () => {
     const getResumePdf = async (interviewReportId) => {
         if (!interviewReportId) {
             console.error("Interview report ID is required")
+            alert("Interview report ID is missing")
             return
         }
 
@@ -84,21 +85,58 @@ export const useInterview = () => {
                 throw new Error("No response received from server")
             }
 
-            // Create blob and download
-            const blob = new Blob([response], { type: "application/pdf" })
-            const url = window.URL.createObjectURL(blob)
-            const link = document.createElement("a")
-            link.href = url
-            link.setAttribute("download", `resume_${interviewReportId}.pdf`)
-            document.body.appendChild(link)
-            link.click()
-            
-            // Cleanup
-            document.body.removeChild(link)
-            window.URL.revokeObjectURL(url)
+            // Check if response is actually a blob/PDF
+            if (response instanceof Blob) {
+                const url = window.URL.createObjectURL(response)
+                const link = document.createElement("a")
+                link.href = url
+                link.setAttribute("download", `resume_${interviewReportId}.pdf`)
+                document.body.appendChild(link)
+                link.click()
+                
+                // Cleanup
+                setTimeout(() => {
+                    document.body.removeChild(link)
+                    window.URL.revokeObjectURL(url)
+                }, 100)
+            } else if (response instanceof ArrayBuffer || response instanceof Uint8Array) {
+                // Handle ArrayBuffer or Uint8Array
+                const blob = new Blob([response], { type: "application/pdf" })
+                const url = window.URL.createObjectURL(blob)
+                const link = document.createElement("a")
+                link.href = url
+                link.setAttribute("download", `resume_${interviewReportId}.pdf`)
+                document.body.appendChild(link)
+                link.click()
+                
+                // Cleanup
+                setTimeout(() => {
+                    document.body.removeChild(link)
+                    window.URL.revokeObjectURL(url)
+                }, 100)
+            } else {
+                throw new Error("Invalid response format")
+            }
         } catch (error) {
             console.error("Error downloading resume PDF:", error)
-            alert("Failed to download resume. Please try again.")
+            
+            // More specific error messages
+            let errorMessage = "Failed to download resume. Please try again."
+            if (error.response) {
+                if (error.response.status === 500) {
+                    errorMessage = "Server error while generating PDF. This may take longer than expected. Please try again in a moment."
+                } else if (error.response.status === 404) {
+                    errorMessage = "Interview report not found."
+                } else if (error.response.status === 403) {
+                    errorMessage = "You don't have permission to download this resume."
+                } else if (error.response.data && error.response.data.message) {
+                    errorMessage = error.response.data.message
+                }
+            } else if (error.code === 'ECONNABORTED') {
+                errorMessage = "Request timed out. PDF generation is taking longer than expected. Please try again."
+            }
+            
+            alert(errorMessage)
         } finally {
             setLoading(false)
         }
