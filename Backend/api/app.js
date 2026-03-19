@@ -10,7 +10,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use(cors({
-  origin: process.env.FRONTENDPORT,
+  origin: "https://ai-interview-tool-164d.vercel.app",
   credentials: true
 }));
 
