@@ -6,6 +6,11 @@ const helmet = require("helmet");
 
 const app = express();
 
+// Favicon handler - MUST be first to catch favicon requests before any middleware
+app.get("/favicon.ico", (req, res) => {
+    res.status(204).end();
+});
+
 const allowedOrigins = [
   "http://localhost:5173",
   "https://ai-interview-tool-164d.vercel.app"
@@ -45,11 +50,6 @@ app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false
 }));
-
-// Favicon handler - return 204 No Content to prevent 500 errors
-app.get("/favicon.ico", (req, res) => {
-    res.status(204).end();
-});
 
 // Root route
 app.get("/", (req, res) => {
@@ -97,6 +97,11 @@ app.use((err, req, res, next) => {
   console.error("Error:", err);
   console.error("Request path:", req.path);
   console.error("Request method:", req.method);
+  
+  // Handle favicon requests specifically - return 204 instead of 500
+  if (req.path === "/favicon.ico") {
+    return res.status(204).end();
+  }
   
   // Don't expose internal error messages (like JSON.parse errors) in production
   let message = "An error occurred. Please try again."
@@ -151,6 +156,11 @@ app.use((err, req, res, next) => {
 
 // 404 handler - must be last
 app.use((req, res) => {
+  // Handle favicon in 404 handler as well (fallback)
+  if (req.path === "/favicon.ico") {
+    return res.status(204).end();
+  }
+  
   console.log(`404 - Route not found: ${req.method} ${req.path}`);
   res.status(404).json({
     message: "Route not found",
