@@ -1,7 +1,7 @@
 const { GoogleGenAI } = require("@google/genai")
 const { z } = require("zod")
 const { zodToJsonSchema } = require("zod-to-json-schema")
-const puppeteer = require("puppeteer")
+const { zodToJsonSchema } = require("zod-to-json-schema")
 
 const ai = new GoogleGenAI({
     apiKey: process.env.GOOGLE_GENAI_API_KEY
@@ -126,45 +126,81 @@ async function generateInterviewReport({ resume, selfDescription, jobDescription
 
 
 async function generatePdfFromHtml(htmlContent) {
-    let browser = null
+    const { uploadToCloudinary } = require('../config/cloudinary');
+    const cloudinary = require('cloudinary').v2;
+    const https = require('https');
+    const http = require('http');
+
     try {
-        // Configure puppeteer for Vercel serverless functions
-        browser = await puppeteer.launch({
-            headless: true,
-            args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process',
-                '--disable-gpu'
-            ]
-        })
+        console.log("Uploading HTML to Cloudinary to generate PDF...");
+        const htmlBuffer = Buffer.from(htmlContent);
+        // Upload HTML as a raw file
+        const uploadOptions = {
+            folder: 'temp-html',
+            resource_type: 'raw',
+            format: 'html'
+        };
         
-        const page = await browser.newPage()
-        await page.setContent(htmlContent, { waitUntil: "networkidle0" })
+        const htmlUploadResult = await new Promise((resolve, reject) => {
+            cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
+                if (error) reject(error);
+                else resolve(result);
+            }).end(htmlBuffer);
+        });
 
-        const pdfBuffer = await page.pdf({
-            format: "A4",
-            margin: {
-                top: "20mm",
-                bottom: "20mm",
-                left: "15mm",
-                right: "15mm"
-            },
-            printBackground: true
-        })
+        const htmlUrl = htmlUploadResult.secure_url;
+        console.log("HTML successfully uploaded to:", htmlUrl);
 
-        await browser.close()
-        return pdfBuffer
+        // Make Cloudinary convert the HTML URL to a PDF using the URL2PNG add-on
+        const pdfUrl = cloudinary.url(htmlUrl, {
+            type: 'url2png',
+            sign_url: true,
+            format: 'pdf',
+            crop: 'fill',
+            width: 794, // A4 width at 96 DPI
+            height: 1123 // A4 height at 96 DPI
+        });
+
+        console.log("Fetching generated PDF from:", pdfUrl);
+
+        // Download the PDF into a buffer to be consistent with the expected return format
+        const pdfBuffer = await new Promise((resolve, reject) => {
+            const client = pdfUrl.startsWith('https') ? https : http;
+            const req = client.get(pdfUrl, (res) => {
+                if (res.statusCode !== 200 && res.statusCode !== 301 && res.statusCode !== 302) {
+                    const error = new Error(`Cloudinary URL2PNG failed with status: ${res.statusCode}. Please ensure the URL2PNG add-on is enabled in your Cloudinary account.`);
+                    error.statusCode = res.statusCode;
+                    return reject(error);
+                }
+
+                if (res.statusCode === 301 || res.statusCode === 302) {
+                     // Handle redirect just in case
+                     const redirectUrl = res.headers.location;
+                     const redirectClient = redirectUrl.startsWith('https') ? https : http;
+                     redirectClient.get(redirectUrl, (redirectRes) => {
+                         if (redirectRes.statusCode !== 200) {
+                             return reject(new Error(`Cloudinary redirect failed with status: ${redirectRes.statusCode}`));
+                         }
+                         const chunks = [];
+                         redirectRes.on('data', chunk => chunks.push(chunk));
+                         redirectRes.on('end', () => resolve(Buffer.concat(chunks)));
+                         redirectRes.on('error', reject);
+                     }).on('error', reject);
+                     return;
+                }
+
+                const chunks = [];
+                res.on('data', chunk => chunks.push(chunk));
+                res.on('end', () => resolve(Buffer.concat(chunks)));
+            });
+            req.on('error', reject);
+        });
+
+        return pdfBuffer;
+
     } catch (error) {
-        if (browser) {
-            await browser.close()
-        }
-        console.error("Error generating PDF from HTML:", error)
-        throw error
+        console.error("Error generating PDF with Cloudinary:", error);
+        throw error;
     }
 }
 
