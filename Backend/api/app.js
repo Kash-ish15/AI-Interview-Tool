@@ -46,6 +46,11 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
+// Favicon handler - return 204 No Content to prevent 500 errors
+app.get("/favicon.ico", (req, res) => {
+    res.status(204).end();
+});
+
 // Root route
 app.get("/", (req, res) => {
     res.status(200).json({
@@ -56,11 +61,22 @@ app.get("/", (req, res) => {
 });
 
 // routes
-const authRouter = require("./routes/auth.routes");
-const interviewRouter = require("./routes/interview.routes");
+try {
+    const authRouter = require("./routes/auth.routes");
+    const interviewRouter = require("./routes/interview.routes");
 
-app.use("/api/auth", authRouter);
-app.use("/api/interview", interviewRouter);
+    app.use("/api/auth", authRouter);
+    app.use("/api/interview", interviewRouter);
+} catch (error) {
+    console.error("Error loading routes:", error);
+    // Don't crash - add a fallback route
+    app.use("/api/*", (req, res) => {
+        res.status(500).json({
+            message: "Routes failed to load. Please check server configuration.",
+            error: process.env.NODE_ENV === "development" ? error.message : undefined
+        });
+    });
+}
 
 // Debug route to check if app is working
 app.get("/api/health", (req, res) => {
