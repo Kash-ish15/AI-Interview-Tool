@@ -39,7 +39,7 @@ CLOUDINARY_API_SECRET=your-cloudinary-api-secret
 - **Required**: Yes (for file uploads and PDF generation)
 - **Description**: Cloudinary credentials for file storage and PDF generation
 - **Used in**: `Backend/api/config/cloudinary.js`
-- **Note**: While the code has fallback values, you should set your own credentials
+- **Note**: ⚠️ **CRITICAL**: These must be set - the application will fail to start without them
 
 ### 5. Node Environment
 ```
